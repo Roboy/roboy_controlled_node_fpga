@@ -6,9 +6,9 @@
 #include "socal/socal.h"
 #include "socal/hps.h"
 #include "socal/alt_gpio.h"
-#include "hps_0.h"
+#include "roboy_controlled_node_fpga/hps_0.h"
 #include <vector>
-#include "myoSlave.hpp"
+#include "roboy_controlled_node_fpga/myoSlave.hpp"
 
 using namespace std;
 

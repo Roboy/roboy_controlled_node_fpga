@@ -38,8 +38,6 @@
 #define DEFAULT_GATEWAY   0xC0A864FE          // 192.168.100.C_ADR_RT1_DEF_NODE_ID
 #define SUBNET_MASK       0xFFFFFF00          // 255.255.255.0
 
-#include "UDPSocket.hpp"
-
 #undef min
 #undef max
 
@@ -47,6 +45,7 @@
 #include <communication/MotorConfig.h>
 #include <communication/MotorStatus.h>
 #include <communication/MotorCommand.h>
+#include <roboy_managing_node/UDPSocket.hpp>
 
 using namespace std;
 using namespace std::chrono;

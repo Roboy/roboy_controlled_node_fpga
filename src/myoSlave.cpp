@@ -1,5 +1,4 @@
-#include <UDPSocket.hpp>
-#include "myoSlave.hpp"
+#include "roboy_controlled_node_fpga/myoSlave.hpp"
 
 static BOOL* pfGsOff_l;
 
@@ -261,8 +260,6 @@ tOplkError MyoSlave::initProcessImage(){
     ret &= oplk_linkProcessImageObject(0x6000, 0x0C, 44, FALSE, 4, &varEntries);
     ret &= oplk_linkProcessImageObject(0x6000, 0x0D, 48, FALSE, 4, &varEntries);
     ret &= oplk_linkProcessImageObject(0x6000, 0x0E, 52, FALSE, 4, &varEntries);
-    ret &= oplk_linkProcessImageObject(0x6000, 0x0F, 56, FALSE, 4, &varEntries);
-    ret &= oplk_linkProcessImageObject(0x6000, 0x10, 60, FALSE, 4, &varEntries);
     varEntries = 1;
     ret &= oplk_linkProcessImageObject(0x6001, 0x01, 0, TRUE, 2, &varEntries);
     ret &= oplk_linkProcessImageObject(0x6001, 0x02, 2, TRUE, 2, &varEntries);
@@ -278,8 +275,6 @@ tOplkError MyoSlave::initProcessImage(){
     ret &= oplk_linkProcessImageObject(0x6001, 0x0C, 22, TRUE, 2, &varEntries);
     ret &= oplk_linkProcessImageObject(0x6001, 0x0D, 24, TRUE, 2, &varEntries);
     ret &= oplk_linkProcessImageObject(0x6001, 0x0E, 26, TRUE, 2, &varEntries);
-    ret &= oplk_linkProcessImageObject(0x6001, 0x0F, 28, TRUE, 2, &varEntries);
-    ret &= oplk_linkProcessImageObject(0x6001, 0x10, 30, TRUE, 2, &varEntries);
     if (ret != kErrorOk)
     {
         fprintf(stderr, "linking process vars failed with \"%s\" (0x%04x)\n", debugstr_getRetValStr(ret), ret);
@@ -457,19 +452,16 @@ tOplkError MyoSlave::processSync(){
 
     ret = oplk_exchangeProcessImageIn();
 
-    static int counter = 0;
-    if((counter++)%50==0) {
-        communication::MotorStatus msg;
-        for (uint motor = 0; motor < 14; motor++) {
-            msg.pwmRef.push_back(getPWM(motor));
-            msg.position.push_back(getPosition(motor));
-            msg.velocity.push_back(getVelocity(motor));
-            msg.displacement.push_back(getDisplacement(motor));
-            msg.current.push_back(getCurrent(motor));
-        }
-        motorStatus.publish(msg);
-        ros::spinOnce();
+    communication::MotorStatus msg;
+    for (uint motor = 0; motor < 14; motor++) {
+        msg.pwmRef.push_back(getPWM(motor));
+        msg.position.push_back(getPosition(motor));
+        msg.velocity.push_back(getVelocity(motor));
+        msg.displacement.push_back(getDisplacement(motor));
+        msg.current.push_back(getCurrent(motor));
     }
+    motorStatus.publish(msg);
+    ros::spinOnce();
 
     return ret;
 }
@@ -572,6 +564,7 @@ tOplkError MyoSlave::processStateChangeEvent(tOplkApiEventType EventType_p,
         case kNmtCsPreOperational2:         // states here
         case kNmtCsReadyToOperate:
         case kNmtCsOperational:
+            changeControl(DISPLACEMENT);
             reset();
             console_printlog("myoFPGA operational StateChangeEvent(0x%X) originating event = 0x%X (%s)\n",
                              pNmtStateChange->newNmtState,

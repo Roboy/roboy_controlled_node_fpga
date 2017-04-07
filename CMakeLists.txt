@@ -35,6 +35,7 @@ find_package(catkin REQUIRED COMPONENTS communication std_msgs)
 include(findros)
 include_directories(${catkin_INCLUDE_DIRS} )
 catkin_package( CATKIN_DEPENDS message_runtime)
+include_directories(include/roboy_controlled_node_fpga)
 
 # Set generic sources and include directories for this demo
 SET(SOURCE
@@ -60,7 +61,7 @@ INCLUDE_DIRECTORIES(
         $ENV{SOCEDS_DEST_ROOT}/ip/altera/hps/altera_hps/hwlib/${ALT_DEVICE_FAMILY}
         $ENV{SOCEDS_DEST_ROOT}/ip/altera/hps/altera_hps/hwlib/include
         $ENV{SOCEDS_DEST_ROOT}/ip/altera/hps/altera_hps/hwlib/include/${ALT_DEVICE_FAMILY}
-        ${CMAKE_CURRENT_SOURCE_DIR}/../powerlink/output
+        ${CMAKE_CURRENT_SOURCE_DIR}/../roboy_powerlink/powerlink/output
         ${CMAKE_CURRENT_SOURCE_DIR}/../roboy_managing_node/include
         ${OPLK_BASE_DIR}/stack/proj/linux/liboplkmndrv-pcap
     )
