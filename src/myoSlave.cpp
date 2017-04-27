@@ -1,3 +1,4 @@
+#include <roboy_managing_node/UDPSocket.hpp>
 #include "roboy_controlled_node_fpga/myoSlave.hpp"
 
 static BOOL* pfGsOff_l;
@@ -10,6 +11,9 @@ UDPSocket *MyoSlave::motorInfoSocket;
 uint MyoSlave::numberOfMotors;
 map<int,map<int,control_Parameters_t>> MyoSlave::control_params;
 ros::Publisher MyoSlave::motorStatus;
+bool MyoSlave::stopRecord = false;
+bool MyoSlave::playback = false;
+bool MyoSlave::recording = false;
 
 MyoSlave::MyoSlave(vector<int32_t*> &myobase, int argc, char* argv[]){
     if (!ros::isInitialized()) {
@@ -20,32 +24,15 @@ MyoSlave::MyoSlave(vector<int32_t*> &myobase, int argc, char* argv[]){
                   ros::init_options::NoRosout);
     }
     nh = ros::NodeHandlePtr(new ros::NodeHandle);
+    spinner = boost::shared_ptr<ros::AsyncSpinner>(new ros::AsyncSpinner(2));
+    spinner->start();
 //
     motorConfig = nh->subscribe("/roboy/MotorConfig", 1, &MyoSlave::MotorConfig, this);
     motorStatus = nh->advertise<communication::MotorStatus>("/roboy/MotorStatus", 1);
-    communication::MotorStatus msg;
-    msg.current.push_back(0);
-    msg.current.push_back(1);
-    msg.current.push_back(2);
-    msg.displacement.push_back(0);
-    msg.displacement.push_back(1);
-    msg.displacement.push_back(2);
-    msg.velocity.push_back(0);
-    msg.velocity.push_back(1);
-    msg.velocity.push_back(2);
-    msg.position.push_back(0);
-    msg.position.push_back(1);
-    msg.position.push_back(2);
-    msg.pwmRef.push_back(0);
-    msg.pwmRef.push_back(1);
-    msg.pwmRef.push_back(2);
-    ros::Rate rate(1);
-//    while(true){
-//        ROS_INFO("sending motor status");
-//        motorStatus.publish(msg);
-//        ros::spinOnce();
-//        rate.sleep();
-//    }
+    motorRecord = nh->advertise<communication::MotorRecord>("/roboy/MotorRecord", 1);
+    motorRecordConfig = nh->subscribe("/roboy/MotorRecordConfig", 1, &MyoSlave::recordMotors, this);
+    motorTrajectoryControl = nh->subscribe("/roboy/MotorTrajectoryControl", 1, &MyoSlave::trajectoryControl, this);
+    motorTrajectory = nh->subscribe("/roboy/MotorTrajectory", 1, &MyoSlave::trajectoryPlayback, this);
 
     myo_base = myobase;
     reset();
@@ -56,7 +43,6 @@ MyoSlave::MyoSlave(vector<int32_t*> &myobase, int argc, char* argv[]){
 	control_Parameters_t params;
 	getDefaultControlParams(&params, POSITION);
 	for(uint motor=0;motor<numberOfMotors;motor++){
-		changeControl(motor, params);
 		control_params[motor][POSITION] = params;
 	}
 	getDefaultControlParams(&params, VELOCITY);
@@ -66,6 +52,7 @@ MyoSlave::MyoSlave(vector<int32_t*> &myobase, int argc, char* argv[]){
 	getDefaultControlParams(&params, DISPLACEMENT);
 	for(uint motor=0;motor<numberOfMotors;motor++){
 		control_params[motor][DISPLACEMENT] = params;
+        changeControl(motor, params);
 	}
 
 	bool powerlink_initialized = true;
@@ -150,62 +137,59 @@ void MyoSlave::mainLoop(){
 	printf("-------------------------------\n\n");
 
 	// wait for key hit
-	while (!fExit)
-	{
-		if (console_kbhit())
-		{
-			cKey = (char)console_getch();
+	while (!fExit) {
 
-			switch (cKey)
-			{
-				case 'r':
-					ret = oplk_execNmtCommand(kNmtEventSwReset);
-					if (ret != kErrorOk)
-						fExit = TRUE;
-					break;
+        if (console_kbhit()) {
+            cKey = (char) console_getch();
 
-				case 0x1B:
-					fExit = TRUE;
-					break;
+            switch (cKey) {
+                case 'r':
+                    ret = oplk_execNmtCommand(kNmtEventSwReset);
+                    if (ret != kErrorOk)
+                        fExit = TRUE;
+                    break;
 
-				default:
-					break;
-			}
-		}
+                case 0x1B:
+                    fExit = TRUE;
+                    break;
 
-		if (system_getTermSignalState() == TRUE)
-		{
-			fExit = TRUE;
-			printf("Received termination signal, exiting...\n");
-			eventlog_printMessage(kEventlogLevelInfo,
-								  kEventlogCategoryControl,
-								  "Received termination signal, exiting...");
-		}
+                default:
+                    break;
+            }
+        }
 
-		if (oplk_checkKernelStack() == FALSE)
-		{
-			fExit = TRUE;
-			fprintf(stderr, "Kernel stack has gone! Exiting...\n");
-			eventlog_printMessage(kEventlogLevelFatal,
-								  kEventlogCategoryControl,
-								  "Kernel stack has gone! Exiting...");
-		}
+        if (system_getTermSignalState() == TRUE) {
+            fExit = TRUE;
+            printf("Received termination signal, exiting...\n");
+            eventlog_printMessage(kEventlogLevelInfo,
+                                  kEventlogCategoryControl,
+                                  "Received termination signal, exiting...");
+        }
+
+        if (oplk_checkKernelStack() == FALSE) {
+            fExit = TRUE;
+            fprintf(stderr, "Kernel stack has gone! Exiting...\n");
+            eventlog_printMessage(kEventlogLevelFatal,
+                                  kEventlogCategoryControl,
+                                  "Kernel stack has gone! Exiting...");
+        }
 
 #if (defined(CONFIG_USE_SYNCTHREAD) || \
-     defined(CONFIG_KERNELSTACK_DIRECTLINK))
-		system_msleep(100);
+ defined(CONFIG_KERNELSTACK_DIRECTLINK))
+        system_msleep(100);
 #else
-		processSync();
+        processSync();
 #endif
-	}
+    }
 
 #if (TARGET_SYSTEM == _WIN32_)
-	printf("Press Enter to quit!\n");
-    console_getch();
+        printf("Press Enter to quit!\n");
+        console_getch();
 #endif
 }
 
 void MyoSlave::MotorConfig(const communication::MotorConfig::ConstPtr &msg){
+    ROS_INFO("received motor config");
     control_Parameters_t params;
     for(auto motor:msg->motors){
         params.control_mode = msg->control_mode[motor];
@@ -222,6 +206,209 @@ void MyoSlave::MotorConfig(const communication::MotorConfig::ConstPtr &msg){
         params.IntegralNegMax = msg->IntegralNegMax[motor];
         changeControl(motor, params);
     }
+}
+
+void MyoSlave::recordMotors(const communication::MotorRecordConfig::ConstPtr &msg){
+    // this will be filled with the trajectories
+    changeControl(DISPLACEMENT);
+
+    double elapsedTime = 0.0, dt;
+    long sample = 0;
+    float samplingTime = msg->samplingTime/1000.0f;
+
+    communication::MotorRecord record;
+
+    ROS_INFO("start recording motors");
+    // start recording
+    timer.start();
+    recording = true;
+    do{
+        dt = elapsedTime;
+        if (msg->control_mode == POSITION) {
+            record.motor0.push_back(getPosition(0));
+            record.motor1.push_back(getPosition(1));
+            record.motor2.push_back(getPosition(2));
+            record.motor3.push_back(getPosition(3));
+            record.motor4.push_back(getPosition(4));
+            record.motor5.push_back(getPosition(5));
+            record.motor6.push_back(getPosition(6));
+            record.motor7.push_back(getPosition(7));
+            record.motor8.push_back(getPosition(8));
+            record.motor9.push_back(getPosition(9));
+            record.motor10.push_back(getPosition(10));
+            record.motor11.push_back(getPosition(11));
+            record.motor12.push_back(getPosition(12));
+            record.motor13.push_back(getPosition(13));
+        }else if (msg->control_mode == VELOCITY) {
+            record.motor0.push_back(getVelocity(0));
+            record.motor1.push_back(getVelocity(1));
+            record.motor2.push_back(getVelocity(2));
+            record.motor3.push_back(getVelocity(3));
+            record.motor4.push_back(getVelocity(4));
+            record.motor5.push_back(getVelocity(5));
+            record.motor6.push_back(getVelocity(6));
+            record.motor7.push_back(getVelocity(7));
+            record.motor8.push_back(getVelocity(8));
+            record.motor9.push_back(getVelocity(9));
+            record.motor10.push_back(getVelocity(10));
+            record.motor11.push_back(getVelocity(11));
+            record.motor12.push_back(getVelocity(12));
+            record.motor13.push_back(getVelocity(13));
+        }else if (msg->control_mode == DISPLACEMENT) {
+            record.motor0.push_back(getDisplacement(0));
+            record.motor1.push_back(getDisplacement(1));
+            record.motor2.push_back(getDisplacement(2));
+            record.motor3.push_back(getDisplacement(3));
+            record.motor4.push_back(getDisplacement(4));
+            record.motor5.push_back(getDisplacement(5));
+            record.motor6.push_back(getDisplacement(6));
+            record.motor7.push_back(getDisplacement(7));
+            record.motor8.push_back(getDisplacement(8));
+            record.motor9.push_back(getDisplacement(9));
+            record.motor10.push_back(getDisplacement(10));
+            record.motor11.push_back(getDisplacement(11));
+            record.motor12.push_back(getDisplacement(12));
+            record.motor13.push_back(getDisplacement(13));
+        }else{
+            ROS_ERROR("unknown control mode");
+            break;
+        }
+        sample++;
+        elapsedTime = timer.elapsedTime();
+        dt = elapsedTime - dt;
+        // if faster than sampling time sleep for difference
+        if (dt < samplingTime) {
+            usleep((samplingTime - dt) * 1000000.0);
+            elapsedTime = timer.elapsedTime();
+        }
+    }while(elapsedTime < msg->recordTime);
+
+    record.recordTime = elapsedTime;
+    record.samplingTime = msg->samplingTime;
+    record.control_mode = msg->control_mode;
+    motorRecord.publish(record);
+    ROS_INFO("done recording motors, recordTime: %f", elapsedTime);
+    recording = false;
+}
+
+void MyoSlave::trajectoryControl(const communication::MotorTrajectoryControl::ConstPtr &msg){
+    stop = !msg->play;
+    rewind = msg->rewind;
+    loop = msg->loop;
+    pause = msg->pause;
+}
+
+void MyoSlave::trajectoryPlayback(const communication::MotorRecord::ConstPtr &msg){
+    playback = true;
+    allToDisplacement(0);
+    timer.start();
+    double elapsedTime = 0.0, dt;
+    int sample = 0;
+    float samplingTime = msg->samplingTime/1000.0f;
+
+    switch (msg->control_mode){
+        case POSITION:
+            changeControl(POSITION);
+            break;
+        case VELOCITY:
+            changeControl(VELOCITY);
+            break;
+        case DISPLACEMENT:
+            changeControl(DISPLACEMENT);
+            break;
+        default:
+            ROS_ERROR("unknown control mode %d, not trying to play back", msg->control_mode);
+            return;
+    }
+
+    ROS_INFO("starting trajectory playback");
+
+    while(!stop && sample<msg->motor0.size() ){
+        if(rewind) {
+            sample = 0;
+            timer.start();
+            elapsedTime = 0;
+        }
+        if(!pause){
+            dt = elapsedTime;
+            switch(msg->control_mode){
+                case POSITION:
+                    setPosition(0,msg->motor0[sample]);
+                    setPosition(1,msg->motor1[sample]);
+                    setPosition(2,msg->motor2[sample]);
+                    setPosition(3,msg->motor3[sample]);
+                    setPosition(4,msg->motor4[sample]);
+                    setPosition(5,msg->motor5[sample]);
+                    setPosition(6,msg->motor6[sample]);
+                    setPosition(7,msg->motor7[sample]);
+                    setPosition(8,msg->motor8[sample]);
+                    setPosition(9,msg->motor9[sample]);
+                    setPosition(10,msg->motor10[sample]);
+                    setPosition(11,msg->motor11[sample]);
+                    setPosition(12,msg->motor12[sample]);
+                    setPosition(13,msg->motor13[sample]);
+                    break;
+                case VELOCITY:
+                    setVelocity(0,msg->motor0[sample]);
+                    setVelocity(1,msg->motor1[sample]);
+                    setVelocity(2,msg->motor2[sample]);
+                    setVelocity(3,msg->motor3[sample]);
+                    setVelocity(4,msg->motor4[sample]);
+                    setVelocity(5,msg->motor5[sample]);
+                    setVelocity(6,msg->motor6[sample]);
+                    setVelocity(7,msg->motor7[sample]);
+                    setVelocity(8,msg->motor8[sample]);
+                    setVelocity(9,msg->motor9[sample]);
+                    setVelocity(10,msg->motor10[sample]);
+                    setVelocity(11,msg->motor11[sample]);
+                    setVelocity(12,msg->motor12[sample]);
+                    setVelocity(13,msg->motor13[sample]);
+                    break;
+                case DISPLACEMENT:
+                    setDisplacement(0,msg->motor0[sample]);
+                    setDisplacement(1,msg->motor1[sample]);
+                    setDisplacement(2,msg->motor2[sample]);
+                    setDisplacement(3,msg->motor3[sample]);
+                    setDisplacement(4,msg->motor4[sample]);
+                    setDisplacement(5,msg->motor5[sample]);
+                    setDisplacement(6,msg->motor6[sample]);
+                    setDisplacement(7,msg->motor7[sample]);
+                    setDisplacement(8,msg->motor8[sample]);
+                    setDisplacement(9,msg->motor9[sample]);
+                    setDisplacement(10,msg->motor10[sample]);
+                    setDisplacement(11,msg->motor11[sample]);
+                    setDisplacement(12,msg->motor12[sample]);
+                    setDisplacement(13,msg->motor13[sample]);
+                    break;
+            }
+            ROS_INFO("%d", msg->motor0[sample]);
+            sample++;
+            if(sample>=msg->motor0.size() && loop){
+                sample = 0;
+                timer.start();
+                elapsedTime = 0;
+                ROS_INFO("looping trajectory");
+            }
+
+            elapsedTime = timer.elapsedTime();
+            dt = elapsedTime - dt;
+            // if faster than sampling time sleep for difference
+            if (dt < samplingTime) {
+                usleep((samplingTime - dt) * 1000000.0);
+                elapsedTime = timer.elapsedTime();
+            }
+        }else{
+            ROS_INFO_THROTTLE(5,"trajectory paused");
+            elapsedTime = timer.elapsedTime();
+            timer.start();
+        }
+    };
+    ROS_INFO("done with trajectory playback");
+    stop = false;
+    rewind = false;
+    loop = false;
+    pause = false;
+    playback = false;
 }
 
 tOplkError MyoSlave::initProcessImage(){
@@ -418,21 +605,23 @@ tOplkError MyoSlave::processSync(){
     if (ret != kErrorOk)
         return ret;
 
-    // apply the setPoints for every motor from process image
-    setDisplacement(0,pProcessImageIn_l->CN1_MotorCommand_setPoint_I32_1);
-    setDisplacement(1,pProcessImageIn_l->CN1_MotorCommand_setPoint_I32_2);
-    setDisplacement(2,pProcessImageIn_l->CN1_MotorCommand_setPoint_I32_3);
-    setDisplacement(3,pProcessImageIn_l->CN1_MotorCommand_setPoint_I32_4);
-    setDisplacement(4,pProcessImageIn_l->CN1_MotorCommand_setPoint_I32_5);
-    setDisplacement(5,pProcessImageIn_l->CN1_MotorCommand_setPoint_I32_6);
-    setDisplacement(6,pProcessImageIn_l->CN1_MotorCommand_setPoint_I32_7);
-    setDisplacement(7,pProcessImageIn_l->CN1_MotorCommand_setPoint_I32_8);
-    setDisplacement(8,pProcessImageIn_l->CN1_MotorCommand_setPoint_I32_9);
-    setDisplacement(9,pProcessImageIn_l->CN1_MotorCommand_setPoint_I32_10);
-    setDisplacement(10,pProcessImageIn_l->CN1_MotorCommand_setPoint_I32_11);
-    setDisplacement(11,pProcessImageIn_l->CN1_MotorCommand_setPoint_I32_12);
-    setDisplacement(12,pProcessImageIn_l->CN1_MotorCommand_setPoint_I32_13);
-    setDisplacement(13,pProcessImageIn_l->CN1_MotorCommand_setPoint_I32_14);
+    if (!recording && !playback) {
+        // apply the setPoints for every motor from process image
+        setDisplacement(0, pProcessImageIn_l->CN1_MotorCommand_setPoint_I32_1);
+        setDisplacement(1, pProcessImageIn_l->CN1_MotorCommand_setPoint_I32_2);
+        setDisplacement(2, pProcessImageIn_l->CN1_MotorCommand_setPoint_I32_3);
+        setDisplacement(3, pProcessImageIn_l->CN1_MotorCommand_setPoint_I32_4);
+        setDisplacement(4, pProcessImageIn_l->CN1_MotorCommand_setPoint_I32_5);
+        setDisplacement(5, pProcessImageIn_l->CN1_MotorCommand_setPoint_I32_6);
+        setDisplacement(6, pProcessImageIn_l->CN1_MotorCommand_setPoint_I32_7);
+        setDisplacement(7, pProcessImageIn_l->CN1_MotorCommand_setPoint_I32_8);
+        setDisplacement(8, pProcessImageIn_l->CN1_MotorCommand_setPoint_I32_9);
+        setDisplacement(9, pProcessImageIn_l->CN1_MotorCommand_setPoint_I32_10);
+        setDisplacement(10, pProcessImageIn_l->CN1_MotorCommand_setPoint_I32_11);
+        setDisplacement(11, pProcessImageIn_l->CN1_MotorCommand_setPoint_I32_12);
+        setDisplacement(12, pProcessImageIn_l->CN1_MotorCommand_setPoint_I32_13);
+        setDisplacement(13, pProcessImageIn_l->CN1_MotorCommand_setPoint_I32_14);
+    }
 
     // write motor info
     pProcessImageOut_l->CN1_MotorStatus_springDisplacement_I16_1 = getDisplacement(0);
@@ -721,6 +910,7 @@ int MyoSlave::getOptions(int argc_p, char* const argv_p[], tOptions* pOpts_p){
 }
 
 void MyoSlave::changeControl(int motor, control_Parameters_t &params){
+    control_params[motor][params.control_mode] = params;
     int motorOffset = motor>=MOTORS_PER_MYOCONTROL?MOTORS_PER_MYOCONTROL:0;
 	MYO_WRITE_control(myo_base[motor/MOTORS_PER_MYOCONTROL], motor-motorOffset, params.control_mode);
 	MYO_WRITE_reset_controller(myo_base[motor/MOTORS_PER_MYOCONTROL], motor-motorOffset);
@@ -852,7 +1042,7 @@ case POSITION:
     params->spNegMax=-10000000;
     params->Kp=1;
     params->Ki=0;
-    params->Kd=0;
+    params->Kd=1;
     params->forwardGain=0;
     params->deadBand=0;
     params->IntegralPosMax=100;
@@ -872,7 +1062,7 @@ case VELOCITY:
 case DISPLACEMENT:
     params->spPosMax=2000;
     params->spNegMax=0;
-    params->Kp=1;
+    params->Kp=80;
     params->Ki=0;
     params->Kd=0;
     params->forwardGain=0;

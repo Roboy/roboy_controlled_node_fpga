@@ -45,7 +45,12 @@
 #include <communication/MotorConfig.h>
 #include <communication/MotorStatus.h>
 #include <communication/MotorCommand.h>
+#include <communication/MotorRecord.h>
+#include <communication/MotorRecordConfig.h>
+#include <communication/MotorTrajectoryControl.h>
 #include <roboy_managing_node/UDPSocket.hpp>
+
+#include "timer.hpp"
 
 using namespace std;
 using namespace std::chrono;
@@ -206,6 +211,9 @@ public:
 	static uint numberOfMotors;
 private:
 	void MotorConfig(const communication::MotorConfig::ConstPtr &msg);
+	void recordMotors(const communication::MotorRecordConfig::ConstPtr &msg);
+	void trajectoryControl(const communication::MotorTrajectoryControl::ConstPtr &msg);
+	void trajectoryPlayback(const communication::MotorRecord::ConstPtr &msg);
     /**
      * This initializes the process image for openPowerLink
      * @return errorCode
@@ -294,6 +302,11 @@ public:
     static PI_OUT*  pProcessImageOut_l;
 private:
 	ros::NodeHandlePtr nh;
-	ros::Subscriber motorConfig;
+	ros::Subscriber motorConfig, motorRecordConfig, motorTrajectoryControl, motorTrajectory;
 	static ros::Publisher motorStatus;
+	ros::Publisher motorRecord;
+	static bool stopRecord, recording, playback;
+	Timer timer;
+	boost::shared_ptr<ros::AsyncSpinner> spinner;
+    bool stop = false, rewind = false, pause = false, loop = false;
 };

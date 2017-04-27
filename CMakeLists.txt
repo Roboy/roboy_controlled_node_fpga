@@ -129,9 +129,10 @@ SET_PROPERTY(TARGET roboy_controlled_node_fpga
 OPLK_LINK_LIBRARIES(roboy_controlled_node_fpga)
 TARGET_LINK_LIBRARIES(roboy_controlled_node_fpga ${pcap_LIBRARY} ${pcap_udp_LIBRARY} -lpthread -lrt ${ros_LIBRARIES})#
 
-################################################################################
-# Installation rules
-
-INSTALL(TARGETS roboy_controlled_node_fpga RUNTIME DESTINATION ${CMAKE_PROJECT_NAME})
-
-
+#==============================================================================
+# Installation
+#==============================================================================
+install(TARGETS
+        roboy_controlled_node_fpga
+        DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+        )
