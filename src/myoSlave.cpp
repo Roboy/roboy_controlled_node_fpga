@@ -1,4 +1,3 @@
-#include <roboy_managing_node/UDPSocket.hpp>
 #include "roboy_controlled_node_fpga/myoSlave.hpp"
 
 static BOOL* pfGsOff_l;
@@ -6,8 +5,6 @@ static BOOL* pfGsOff_l;
 vector<int32_t*> MyoSlave::myo_base;
 PI_IN* MyoSlave::pProcessImageIn_l;
 PI_OUT* MyoSlave::pProcessImageOut_l;
-UDPSocket *MyoSlave::motorConfigSocket;
-UDPSocket *MyoSlave::motorInfoSocket;
 uint MyoSlave::numberOfMotors;
 map<int,map<int,control_Parameters_t>> MyoSlave::control_params;
 ros::Publisher MyoSlave::motorStatus;
@@ -28,8 +25,8 @@ MyoSlave::MyoSlave(vector<int32_t*> &myobase, int argc, char* argv[]){
     spinner->start();
 //
     motorConfig = nh->subscribe("/roboy/MotorConfig", 1, &MyoSlave::MotorConfig, this);
-    motorStatus = nh->advertise<communication::MotorStatus>("/roboy/MotorStatus", 1);
-    motorRecord = nh->advertise<communication::MotorRecord>("/roboy/MotorRecord", 1);
+    motorStatus = nh->advertise<roboy_communication_middleware::MotorStatus>("/roboy/MotorStatus", 1);
+    motorRecord = nh->advertise<roboy_communication_middleware::MotorRecord>("/roboy/MotorRecord", 1);
     motorRecordConfig = nh->subscribe("/roboy/MotorRecordConfig", 1, &MyoSlave::recordMotors, this);
     motorTrajectoryControl = nh->subscribe("/roboy/MotorTrajectoryControl", 1, &MyoSlave::trajectoryControl, this);
     motorTrajectory = nh->subscribe("/roboy/MotorTrajectory", 1, &MyoSlave::trajectoryPlayback, this);
@@ -96,9 +93,6 @@ MyoSlave::MyoSlave(vector<int32_t*> &myobase, int argc, char* argv[]){
 	ret = initProcessImage();
 	if (ret != kErrorOk)
 		powerlink_initialized = false;
-
-    motorConfigSocket = new UDPSocket("192.168.0.100", 8000);
-    motorInfoSocket = new UDPSocket("192.168.0.100", 8002);
 
     if(powerlink_initialized)
 		mainLoop();
@@ -188,7 +182,7 @@ void MyoSlave::mainLoop(){
 #endif
 }
 
-void MyoSlave::MotorConfig(const communication::MotorConfig::ConstPtr &msg){
+void MyoSlave::MotorConfig(const roboy_communication_middleware::MotorConfig::ConstPtr &msg){
     ROS_INFO("received motor config");
     control_Parameters_t params;
     for(auto motor:msg->motors){
@@ -208,7 +202,7 @@ void MyoSlave::MotorConfig(const communication::MotorConfig::ConstPtr &msg){
     }
 }
 
-void MyoSlave::recordMotors(const communication::MotorRecordConfig::ConstPtr &msg){
+void MyoSlave::recordMotors(const roboy_communication_middleware::MotorRecordConfig::ConstPtr &msg){
     // this will be filled with the trajectories
     changeControl(DISPLACEMENT);
 
@@ -216,7 +210,7 @@ void MyoSlave::recordMotors(const communication::MotorRecordConfig::ConstPtr &ms
     long sample = 0;
     float samplingTime = msg->samplingTime/1000.0f;
 
-    communication::MotorRecord record;
+    roboy_communication_middleware::MotorRecord record;
 
     ROS_INFO("start recording motors");
     // start recording
@@ -291,14 +285,14 @@ void MyoSlave::recordMotors(const communication::MotorRecordConfig::ConstPtr &ms
     recording = false;
 }
 
-void MyoSlave::trajectoryControl(const communication::MotorTrajectoryControl::ConstPtr &msg){
+void MyoSlave::trajectoryControl(const roboy_communication_middleware::MotorTrajectoryControl::ConstPtr &msg){
     stop = !msg->play;
     rewind = msg->rewind;
     loop = msg->loop;
     pause = msg->pause;
 }
 
-void MyoSlave::trajectoryPlayback(const communication::MotorRecord::ConstPtr &msg){
+void MyoSlave::trajectoryPlayback(const roboy_communication_middleware::MotorRecord::ConstPtr &msg){
     playback = true;
     allToDisplacement(0);
     timer.start();
@@ -641,7 +635,7 @@ tOplkError MyoSlave::processSync(){
 
     ret = oplk_exchangeProcessImageIn();
 
-    communication::MotorStatus msg;
+    roboy_communication_middleware::MotorStatus msg;
     for (uint motor = 0; motor < 14; motor++) {
         msg.pwmRef.push_back(getPWM(motor));
         msg.position.push_back(getPosition(motor));

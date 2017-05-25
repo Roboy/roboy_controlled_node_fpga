@@ -31,10 +31,10 @@ SET(OBJDICT CiA401_CN)              # Set object dictionary to use
 FIND_OPLK_LIBRARY("cn")             # Find suitable openPOWERLINK library
 
 # ros
-find_package(catkin REQUIRED COMPONENTS communication std_msgs)
+find_package(catkin REQUIRED COMPONENTS common_utilities roboy_communication_middleware std_msgs)
 include(findros)
 include_directories(${catkin_INCLUDE_DIRS} )
-catkin_package( CATKIN_DEPENDS message_runtime)
+catkin_package( CATKIN_DEPENDS message_runtime common_utilities roboy_communication_middleware)
 include_directories(include/roboy_controlled_node_fpga)
 
 # Set generic sources and include directories for this demo
@@ -127,6 +127,7 @@ SET_PROPERTY(TARGET roboy_controlled_node_fpga
 # Libraries to link
 
 OPLK_LINK_LIBRARIES(roboy_controlled_node_fpga)
+add_dependencies(roboy_controlled_node_fpga roboy_communication_middleware_gencpp)
 TARGET_LINK_LIBRARIES(roboy_controlled_node_fpga ${pcap_LIBRARY} ${pcap_udp_LIBRARY} -lpthread -lrt ${ros_LIBRARIES})#
 
 #==============================================================================

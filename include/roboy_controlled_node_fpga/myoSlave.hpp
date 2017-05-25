@@ -42,14 +42,13 @@
 #undef max
 
 #include <ros/ros.h>
-#include <communication/MotorConfig.h>
-#include <communication/MotorStatus.h>
-#include <communication/MotorCommand.h>
-#include <communication/MotorRecord.h>
-#include <communication/MotorRecordConfig.h>
-#include <communication/MotorTrajectoryControl.h>
-#include <roboy_managing_node/UDPSocket.hpp>
-
+#include <roboy_communication_middleware/MotorConfig.h>
+#include <roboy_communication_middleware/MotorStatus.h>
+#include <roboy_communication_middleware/MotorCommand.h>
+#include <roboy_communication_middleware/MotorRecord.h>
+#include <roboy_communication_middleware/MotorRecordConfig.h>
+#include <roboy_communication_middleware/MotorTrajectoryControl.h>
+#include <common_utilities/CommonDefinitions.h>
 #include "timer.hpp"
 
 using namespace std;
@@ -210,10 +209,10 @@ public:
 	bool spi_active = false;
 	static uint numberOfMotors;
 private:
-	void MotorConfig(const communication::MotorConfig::ConstPtr &msg);
-	void recordMotors(const communication::MotorRecordConfig::ConstPtr &msg);
-	void trajectoryControl(const communication::MotorTrajectoryControl::ConstPtr &msg);
-	void trajectoryPlayback(const communication::MotorRecord::ConstPtr &msg);
+	void MotorConfig(const roboy_communication_middleware::MotorConfig::ConstPtr &msg);
+	void recordMotors(const roboy_communication_middleware::MotorRecordConfig::ConstPtr &msg);
+	void trajectoryControl(const roboy_communication_middleware::MotorTrajectoryControl::ConstPtr &msg);
+	void trajectoryPlayback(const roboy_communication_middleware::MotorRecord::ConstPtr &msg);
     /**
      * This initializes the process image for openPowerLink
      * @return errorCode
@@ -295,7 +294,6 @@ private:
     static tOplkError processSDO(tSdoConHdl conHdl_p,
                                  const tAsySdoSeq* pSdoSeqData_p,
                                  UINT dataSize_p);
-    static UDPSocket *motorConfigSocket, *motorInfoSocket;
 public:
     static vector<int32_t*> myo_base;
     static PI_IN*   pProcessImageIn_l;
