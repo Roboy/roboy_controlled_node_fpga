@@ -24,6 +24,7 @@ int main(int argc, char *argv[]) {
     int fd;
     void *h2p_lw_led_addr, *h2p_lw_adc_addr;
     vector<int32_t*> h2p_lw_myo_addr;
+    vector<int32_t*> h2p_lw_i2c_addr;
 
 //     map the address space for the LED registers into user space so we can interact with them.
 //     we'll actually map in the entire CSR span of the HPS since we want to access various registers within that span
@@ -46,7 +47,12 @@ int main(int argc, char *argv[]) {
     h2p_lw_myo_addr.push_back((int32_t*)(virtual_base + ( ( unsigned long  )( ALT_LWFPGASLVS_OFST + MYOCONTROL_0_BASE ) & ( unsigned long)( HW_REGS_MASK )) ));
     h2p_lw_myo_addr.push_back((int32_t*)(virtual_base + ( ( unsigned long  )( ALT_LWFPGASLVS_OFST + MYOCONTROL_1_BASE ) & ( unsigned long)( HW_REGS_MASK )) ));
 
-    MyoSlave myoControl(h2p_lw_myo_addr, argc, argv);
+    h2p_lw_i2c_addr.push_back((int32_t*)(virtual_base + ( ( unsigned long  )( ALT_LWFPGASLVS_OFST + I2C_0_BASE ) & ( unsigned long)( HW_REGS_MASK )) ));
+    h2p_lw_i2c_addr.push_back((int32_t*)(virtual_base + ( ( unsigned long  )( ALT_LWFPGASLVS_OFST + I2C_1_BASE ) & ( unsigned long)( HW_REGS_MASK )) ));
+
+    vector<int> deviceIDs = {0,1};
+
+    MyoSlave myoControl(h2p_lw_myo_addr,h2p_lw_i2c_addr,deviceIDs, argc, argv);
     myoControl.adc_base = (uint32_t*)h2p_lw_adc_addr;
 
     // clean up our memory mapping and exit

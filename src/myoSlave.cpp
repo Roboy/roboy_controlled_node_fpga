@@ -3,16 +3,19 @@
 static BOOL* pfGsOff_l;
 
 vector<int32_t*> MyoSlave::myo_base;
+vector<boost::shared_ptr<AM4096>> MyoSlave::jointAngle;
 PI_IN* MyoSlave::pProcessImageIn_l;
 PI_OUT* MyoSlave::pProcessImageOut_l;
 uint MyoSlave::numberOfMotors;
 map<int,map<int,control_Parameters_t>> MyoSlave::control_params;
 ros::Publisher MyoSlave::motorStatus;
+ros::Publisher MyoSlave::jointStatus;
 bool MyoSlave::stopRecord = false;
 bool MyoSlave::playback = false;
 bool MyoSlave::recording = false;
+int MyoSlave::powerlink_state = kNmtGsInitialising;
 
-MyoSlave::MyoSlave(vector<int32_t*> &myobase, int argc, char* argv[]){
+MyoSlave::MyoSlave(vector<int32_t*> &myobase, vector<int32_t*> &i2c_base, vector<int> &deviceIDs, int argc, char* argv[]){
     if (!ros::isInitialized()) {
         int argc = 0;
         char **argv = NULL;
@@ -24,14 +27,18 @@ MyoSlave::MyoSlave(vector<int32_t*> &myobase, int argc, char* argv[]){
     spinner = boost::shared_ptr<ros::AsyncSpinner>(new ros::AsyncSpinner(2));
     spinner->start();
 //
-    motorConfig = nh->subscribe("/roboy/MotorConfig", 1, &MyoSlave::MotorConfig, this);
-    motorStatus = nh->advertise<roboy_communication_middleware::MotorStatus>("/roboy/MotorStatus", 1);
-    motorRecord = nh->advertise<roboy_communication_middleware::MotorRecord>("/roboy/MotorRecord", 1);
-    motorRecordConfig = nh->subscribe("/roboy/MotorRecordConfig", 1, &MyoSlave::recordMotors, this);
-    motorTrajectoryControl = nh->subscribe("/roboy/MotorTrajectoryControl", 1, &MyoSlave::trajectoryControl, this);
-    motorTrajectory = nh->subscribe("/roboy/MotorTrajectory", 1, &MyoSlave::trajectoryPlayback, this);
+    motorConfig = nh->subscribe("/roboy/middleware/MotorConfig", 1, &MyoSlave::MotorConfig, this);
+    motorStatus = nh->advertise<roboy_communication_middleware::MotorStatus>("/roboy/middleware/MotorStatus", 1);
+    jointStatus = nh->advertise<roboy_communication_middleware::JointStatus>("/roboy/middleware/JointStatus", 1);
+    motorRecord = nh->advertise<roboy_communication_middleware::MotorRecord>("/roboy/middleware/MotorRecord", 1);
+    motorRecordConfig = nh->subscribe("/roboy/middleware/MotorRecordConfig", 1, &MyoSlave::recordMotors, this);
+    motorTrajectoryControl = nh->subscribe("/roboy/middleware/MotorTrajectoryControl", 1, &MyoSlave::trajectoryControl, this);
+    motorTrajectory = nh->subscribe("/roboy/middleware/MotorTrajectory", 1, &MyoSlave::trajectoryPlayback, this);
 
     myo_base = myobase;
+    for(uint i=0; i<i2c_base.size();i++)
+        jointAngle.push_back(boost::shared_ptr<AM4096>(new AM4096(i2c_base[i], deviceIDs)));
+
     reset();
     toggleSPI(false);
 	// initialize control mode
@@ -632,9 +639,20 @@ tOplkError MyoSlave::processSync(){
     pProcessImageOut_l->CN1_MotorStatus_springDisplacement_I16_12 = getDisplacement(11);
     pProcessImageOut_l->CN1_MotorStatus_springDisplacement_I16_13 = getDisplacement(12);
     pProcessImageOut_l->CN1_MotorStatus_springDisplacement_I16_14 = getDisplacement(13);
-
     ret = oplk_exchangeProcessImageIn();
 
+    if (jointAngle.size()) {
+        roboy_communication_middleware::JointStatus msg;
+        for (uint i = 0; i < jointAngle.size(); i++) {
+//                jointAngle[i]->readAbsAngle(msg.absAngles);
+            jointAngle[i]->readRelAngle(msg.relAngles);
+//                jointAngle[i]->readMagnetStatus(msg.tooFar, msg.tooClose);
+//                jointAngle[i]->readTacho(msg.tacho);
+//                jointAngle[i]->readAgcGain(msg.agcGain);
+        }
+        jointStatus.publish(msg);
+    }
+//
     roboy_communication_middleware::MotorStatus msg;
     for (uint motor = 0; motor < 14; motor++) {
         msg.pwmRef.push_back(getPWM(motor));
@@ -644,8 +662,6 @@ tOplkError MyoSlave::processSync(){
         msg.current.push_back(getCurrent(motor));
     }
     motorStatus.publish(msg);
-    ros::spinOnce();
-
     return ret;
 }
 
@@ -720,6 +736,8 @@ tOplkError MyoSlave::processStateChangeEvent(tOplkApiEventType EventType_p,
     {
         return kErrorGeneralError;
     }
+
+    powerlink_state = pNmtStateChange->newNmtState;
 
     switch (pNmtStateChange->newNmtState)
     {

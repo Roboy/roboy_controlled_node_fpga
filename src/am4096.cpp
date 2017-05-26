@@ -1,4 +1,4 @@
-#include "i2c_fpga/am4096.hpp"
+#include "roboy_controlled_node_fpga/am4096.hpp"
 
 AM4096::AM4096(void * baseAddr){
 	i2c = new I2C(baseAddr);
@@ -17,8 +17,8 @@ void AM4096::readAbsAngle(vector<uint32_t> &absAngles){
 		uint32_t val;
 		bool dataOk = readAbsAngle(addr,val);
 		absAngles.push_back(val);
-		if(!dataOk)
-			ROS_WARN("abs angle data of sensor %d NOT ok", addr);
+//		if(!dataOk)
+//			ROS_WARN("abs angle data of sensor %d NOT ok", addr);
 	}
 }
 
@@ -38,10 +38,11 @@ bool AM4096::readAbsAngle(uint8_t i2cAddr, uint32_t &absAngle){
 void AM4096::readRelAngle(vector<uint32_t> &relAngles){
 	for(int const addr:i2cAddrs){
 		uint32_t val;
-		bool dataOk = readAbsAngle(addr,val);
+		bool dataOk = readRelAngle(addr,val);
 		relAngles.push_back(val);
-		if(!dataOk)
-			ROS_WARN("rel angle data of sensor %d NOT ok", addr);
+		usleep(1000);
+//		if(!dataOk)
+//			ROS_WARN("rel angle data of sensor %d NOT ok", addr);
 	}
 }
 
@@ -61,6 +62,15 @@ void AM4096::readMagnetStatus(vector<bool> &magnetTooFar, vector<bool> &magnetTo
 		readMagnetStatus(addr, tooFar, tooClose);
 		magnetTooFar.push_back(tooFar);
 		magnetTooClose.push_back(tooClose);
+	}
+}
+
+void AM4096::readMagnetStatus(vector<unsigned char> &magnetTooFar, vector<unsigned char> &magnetTooClose){
+	for(int const addr:i2cAddrs){
+		bool tooFar, tooClose;
+		readMagnetStatus(addr, tooFar, tooClose);
+		magnetTooFar.push_back((unsigned char)tooFar);
+		magnetTooClose.push_back((unsigned char)tooClose);
 	}
 }
 
@@ -94,8 +104,8 @@ void AM4096::readTacho(vector<uint32_t> &tacho){
 		uint32_t val;
 		bool overFlow = readTacho(addr,val);
 		tacho.push_back(val);
-		if(overFlow)
-			ROS_WARN("tach overflow for sensor %d", addr);
+//		if(overFlow)
+//			ROS_WARN("tach overflow for sensor %d", addr);
 	}
 }
 

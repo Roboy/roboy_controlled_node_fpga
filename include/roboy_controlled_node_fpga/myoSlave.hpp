@@ -42,6 +42,7 @@
 #undef max
 
 #include <ros/ros.h>
+#include <roboy_communication_middleware/JointStatus.h>
 #include <roboy_communication_middleware/MotorConfig.h>
 #include <roboy_communication_middleware/MotorStatus.h>
 #include <roboy_communication_middleware/MotorCommand.h>
@@ -49,7 +50,8 @@
 #include <roboy_communication_middleware/MotorRecordConfig.h>
 #include <roboy_communication_middleware/MotorTrajectoryControl.h>
 #include <common_utilities/CommonDefinitions.h>
-#include "timer.hpp"
+#include "roboy_controlled_node_fpga/timer.hpp"
+#include "roboy_controlled_node_fpga/am4096.hpp"
 
 using namespace std;
 using namespace std::chrono;
@@ -65,7 +67,7 @@ typedef struct
 
 class MyoSlave{
 public:
-	MyoSlave(vector<int32_t*> &myo_base, int argc, char* argv[]);
+	MyoSlave(vector<int32_t*> &myo_base, vector<int32_t*> &i2c_base, vector<int> &deviceIDs, int argc, char* argv[]);
 	~MyoSlave();
 	/**
 	 * This is the main loop, receiving commands and sending motor status via powerlink
@@ -296,15 +298,18 @@ private:
                                  UINT dataSize_p);
 public:
     static vector<int32_t*> myo_base;
+	static vector<int32_t*> i2c_base;
+	static vector<boost::shared_ptr<AM4096>> jointAngle;
     static PI_IN*   pProcessImageIn_l;
     static PI_OUT*  pProcessImageOut_l;
 private:
 	ros::NodeHandlePtr nh;
 	ros::Subscriber motorConfig, motorRecordConfig, motorTrajectoryControl, motorTrajectory;
-	static ros::Publisher motorStatus;
+	static ros::Publisher motorStatus, jointStatus;
 	ros::Publisher motorRecord;
 	static bool stopRecord, recording, playback;
 	Timer timer;
 	boost::shared_ptr<ros::AsyncSpinner> spinner;
     bool stop = false, rewind = false, pause = false, loop = false;
+	static int powerlink_state;
 };

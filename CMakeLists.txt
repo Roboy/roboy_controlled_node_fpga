@@ -41,7 +41,6 @@ include_directories(include/roboy_controlled_node_fpga)
 SET(SOURCE
         src/main.cpp
         src/myoSlave.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/../roboy_managing_node/src/UDPSocket.cpp
         ${CONTRIB_SOURCE_DIR}/console/printlog.c
         ${CONTRIB_SOURCE_DIR}/getopt/getopt.c
         ${COMMON_SOURCE_DIR}/eventlog/eventlog.c
@@ -119,21 +118,22 @@ ENDIF()
 ################################################################################
 # Set the executable
 
-ADD_EXECUTABLE(roboy_controlled_node_fpga ${SOURCE} ${DEMO_ARCH_SOURCES} )
+ADD_EXECUTABLE(roboy_controlled_node_fpga ${SOURCE} src/i2c.cpp src/am4096.cpp ${DEMO_ARCH_SOURCES} )
 SET_PROPERTY(TARGET roboy_controlled_node_fpga
              PROPERTY COMPILE_DEFINITIONS_DEBUG DEBUG;DEF_DEBUG_LVL=${CFG_DEBUG_LVL})
-
-################################################################################
-# Libraries to link
-
 OPLK_LINK_LIBRARIES(roboy_controlled_node_fpga)
 add_dependencies(roboy_controlled_node_fpga roboy_communication_middleware_gencpp)
 TARGET_LINK_LIBRARIES(roboy_controlled_node_fpga ${pcap_LIBRARY} ${pcap_udp_LIBRARY} -lpthread -lrt ${ros_LIBRARIES})#
+
+
+ADD_EXECUTABLE(roboy_commandline_interface src/i2c.cpp src/am4096.cpp src/myoControl.cpp src/interface.cpp )
+TARGET_LINK_LIBRARIES(roboy_commandline_interface ${ncurses_LIBRARY} ${ros_LIBRARIES} )
 
 #==============================================================================
 # Installation
 #==============================================================================
 install(TARGETS
         roboy_controlled_node_fpga
+        roboy_commandline_interface
         DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
         )

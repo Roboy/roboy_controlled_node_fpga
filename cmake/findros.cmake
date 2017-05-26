@@ -24,5 +24,6 @@ set(ros_LIBRARIES
         ${CMAKE_CURRENT_SOURCE_DIR}/usr/lib/arm-linux-gnueabihf/libicui18n.so
         ${CMAKE_CURRENT_SOURCE_DIR}/lib/arm-linux-gnueabihf/libdl.so.2
         ${CMAKE_CURRENT_SOURCE_DIR}/usr/lib/liblz4.a
+        ${CMAKE_CURRENT_SOURCE_DIR}/usr/lib/libtinyxml.so
         )
 message(STATUS "ros_LIBRARIES: ${ros_LIBRARIES}" )
