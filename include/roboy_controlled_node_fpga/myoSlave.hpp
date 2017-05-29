@@ -52,6 +52,7 @@
 #include <common_utilities/CommonDefinitions.h>
 #include "roboy_controlled_node_fpga/timer.hpp"
 #include "roboy_controlled_node_fpga/am4096.hpp"
+#include <bitset>
 
 using namespace std;
 using namespace std::chrono;

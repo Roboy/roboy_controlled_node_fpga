@@ -625,6 +625,10 @@ tOplkError MyoSlave::processSync(){
     }
 
     // write motor info
+    uint32_t displacement;
+    displacement = getDisplacement(1);
+    bitset<32> x(displacement);
+    cout << x << endl;
     pProcessImageOut_l->CN1_MotorStatus_springDisplacement_I16_1 = getDisplacement(0);
     pProcessImageOut_l->CN1_MotorStatus_springDisplacement_I16_2 = getDisplacement(1);
     pProcessImageOut_l->CN1_MotorStatus_springDisplacement_I16_3 = getDisplacement(2);
