@@ -11,7 +11,7 @@ ENDIF()
 set(CMAKE_SYSTEM_NAME Linux)
 set(CMAKE_SYSTEM_PROCESSOR armv7l)
 
-set(compiler_path /home/roboy/Downloads/gcc-linaro-arm-linux-gnueabihf-4.7-2012.11-20121123_linux/bin)
+set(compiler_path /usr/bin)
 set(CMAKE_C_COMPILER ${compiler_path}/arm-linux-gnueabihf-gcc)
 set(CMAKE_CXX_COMPILER ${compiler_path}/arm-linux-gnueabihf-g++)
 
@@ -35,7 +35,9 @@ find_package(catkin REQUIRED COMPONENTS common_utilities roboy_communication_mid
 include(findros)
 include_directories(${catkin_INCLUDE_DIRS} )
 catkin_package( CATKIN_DEPENDS message_runtime common_utilities roboy_communication_middleware)
-include_directories(include/roboy_controlled_node_fpga)
+include_directories(include/roboy_controlled_node_fpga
+                    usr/include/arm-linux-gnueabihf
+        )
 
 # Set generic sources and include directories for this demo
 SET(SOURCE
@@ -127,7 +129,7 @@ TARGET_LINK_LIBRARIES(roboy_controlled_node_fpga ${pcap_LIBRARY} ${pcap_udp_LIBR
 
 
 ADD_EXECUTABLE(roboy_commandline_interface src/i2c.cpp src/am4096.cpp src/myoControl.cpp src/interface.cpp )
-TARGET_LINK_LIBRARIES(roboy_commandline_interface ${ncurses_LIBRARY} ${ros_LIBRARIES} )
+TARGET_LINK_LIBRARIES(roboy_commandline_interface ${ncurses_LIBRARIES} ${ros_LIBRARIES} )
 
 #==============================================================================
 # Installation
