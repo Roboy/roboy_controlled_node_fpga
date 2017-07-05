@@ -44,6 +44,7 @@
 #include <ros/ros.h>
 #include <roboy_communication_middleware/JointStatus.h>
 #include <roboy_communication_middleware/MotorConfig.h>
+#include <roboy_communication_middleware/MotorConfigService.h>
 #include <roboy_communication_middleware/MotorStatus.h>
 #include <roboy_communication_middleware/MotorCommand.h>
 #include <roboy_communication_middleware/MotorRecord.h>
@@ -213,9 +214,12 @@ public:
 	static uint numberOfMotors;
 private:
 	void MotorConfig(const roboy_communication_middleware::MotorConfig::ConstPtr &msg);
+	bool MotorConfigService(roboy_communication_middleware::MotorConfigService::Request  &req,
+					 roboy_communication_middleware::MotorConfigService::Response &res);
 	void recordMotors(const roboy_communication_middleware::MotorRecordConfig::ConstPtr &msg);
 	void trajectoryControl(const roboy_communication_middleware::MotorTrajectoryControl::ConstPtr &msg);
 	void trajectoryPlayback(const roboy_communication_middleware::MotorRecord::ConstPtr &msg);
+
     /**
      * This initializes the process image for openPowerLink
      * @return errorCode
@@ -306,6 +310,7 @@ public:
 private:
 	ros::NodeHandlePtr nh;
 	ros::Subscriber motorConfig, motorRecordConfig, motorTrajectoryControl, motorTrajectory;
+	ros::ServiceServer motorConfig_srv;
 	static ros::Publisher motorStatus, jointStatus;
 	ros::Publisher motorRecord;
 	static bool stopRecord, recording, playback;

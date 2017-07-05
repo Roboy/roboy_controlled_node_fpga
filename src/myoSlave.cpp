@@ -28,12 +28,14 @@ MyoSlave::MyoSlave(vector<int32_t*> &myobase, vector<int32_t*> &i2c_base, vector
     spinner->start();
 //
     motorConfig = nh->subscribe("/roboy/middleware/MotorConfig", 1, &MyoSlave::MotorConfig, this);
+    motorConfig_srv = nh->advertiseService("/roboy/middleware/MotorConfig", &MyoSlave::MotorConfigService, this);
     motorStatus = nh->advertise<roboy_communication_middleware::MotorStatus>("/roboy/middleware/MotorStatus", 1);
     jointStatus = nh->advertise<roboy_communication_middleware::JointStatus>("/roboy/middleware/JointStatus", 1);
     motorRecord = nh->advertise<roboy_communication_middleware::MotorRecord>("/roboy/middleware/MotorRecord", 1);
     motorRecordConfig = nh->subscribe("/roboy/middleware/MotorRecordConfig", 1, &MyoSlave::recordMotors, this);
     motorTrajectoryControl = nh->subscribe("/roboy/middleware/MotorTrajectoryControl", 1, &MyoSlave::trajectoryControl, this);
     motorTrajectory = nh->subscribe("/roboy/middleware/MotorTrajectory", 1, &MyoSlave::trajectoryPlayback, this);
+
 
     myo_base = myobase;
     for(uint i=0; i<i2c_base.size();i++)
@@ -205,6 +207,27 @@ void MyoSlave::MotorConfig(const roboy_communication_middleware::MotorConfig::Co
         params.deadBand = msg->deadBand[motor];
         params.IntegralPosMax = msg->IntegralPosMax[motor];
         params.IntegralNegMax = msg->IntegralNegMax[motor];
+        changeControl(motor, params);
+    }
+}
+
+bool MyoSlave::MotorConfigService(roboy_communication_middleware::MotorConfigService::Request  &req,
+                           roboy_communication_middleware::MotorConfigService::Response &res){
+    ROS_INFO("serving motor config service");
+    control_Parameters_t params;
+    for(auto motor:req.config.motors){
+        params.control_mode = req.config.control_mode[motor];
+        params.outputPosMax = req.config.outputPosMax[motor];
+        params.outputNegMax = req.config.outputNegMax[motor];
+        params.spPosMax = req.config.spPosMax[motor];
+        params.spNegMax = req.config.spNegMax[motor];
+        params.Kp = req.config.Kp[motor];
+        params.Ki = req.config.Ki[motor];
+        params.Kd = req.config.Kd[motor];
+        params.forwardGain = req.config.forwardGain[motor];
+        params.deadBand = req.config.deadBand[motor];
+        params.IntegralPosMax = req.config.IntegralPosMax[motor];
+        params.IntegralNegMax = req.config.IntegralNegMax[motor];
         changeControl(motor, params);
     }
 }
