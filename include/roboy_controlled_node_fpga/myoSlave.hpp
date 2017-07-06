@@ -42,6 +42,7 @@
 #undef max
 
 #include <ros/ros.h>
+#include <roboy_communication_middleware/DarkRoom.h>
 #include <roboy_communication_middleware/JointStatus.h>
 #include <roboy_communication_middleware/MotorConfig.h>
 #include <roboy_communication_middleware/MotorConfigService.h>
@@ -54,6 +55,8 @@
 #include "roboy_controlled_node_fpga/timer.hpp"
 #include "roboy_controlled_node_fpga/am4096.hpp"
 #include <bitset>
+
+#define NUM_SENSORS 9
 
 using namespace std;
 using namespace std::chrono;
@@ -69,7 +72,8 @@ typedef struct
 
 class MyoSlave{
 public:
-	MyoSlave(vector<int32_t*> &myo_base, vector<int32_t*> &i2c_base, vector<int> &deviceIDs, int argc, char* argv[]);
+	MyoSlave(vector<int32_t*> &myo_base, vector<int32_t*> &i2c_base, vector<int> &deviceIDs, int32_t* h2p_lw_darkroom_addr,
+			 int argc, char* argv[]);
 	~MyoSlave();
 	/**
 	 * This is the main loop, receiving commands and sending motor status via powerlink
@@ -305,6 +309,7 @@ private:
 public:
     static vector<int32_t*> myo_base;
 	static vector<int32_t*> i2c_base;
+	static int32_t* darkroom_base;
 	static vector<boost::shared_ptr<AM4096>> jointAngle;
     static PI_IN*   pProcessImageIn_l;
     static PI_OUT*  pProcessImageOut_l;
@@ -312,7 +317,7 @@ private:
 	ros::NodeHandlePtr nh;
 	ros::Subscriber motorConfig, motorRecordConfig, motorTrajectoryControl, motorTrajectory;
 	ros::ServiceServer motorConfig_srv;
-	static ros::Publisher motorStatus, jointStatus;
+	static ros::Publisher motorStatus, jointStatus, darkroom;
 	ros::Publisher motorRecord;
 	static bool stopRecord, recording, playback;
 	Timer timer;
