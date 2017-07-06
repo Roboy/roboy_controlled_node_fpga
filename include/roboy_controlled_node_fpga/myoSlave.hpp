@@ -80,8 +80,9 @@ public:
 	 * @param motor for this motor
 	 * @param mode choose from Position, Velocity or Displacement
 	 * @param params with these controller parameters
+	 * @param setPoint new setPoint
 	 */
-	static void changeControl(int motor, control_Parameters_t &params);
+	static void changeControl(int motor, control_Parameters_t &params, int32_t setPoint = 0);
     /**
     * Changes the controller of a motor with the saved controller parameters
     * @param motor for thsi motor

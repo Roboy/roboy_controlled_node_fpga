@@ -215,6 +215,7 @@ bool MyoSlave::MotorConfigService(roboy_communication_middleware::MotorConfigSer
                            roboy_communication_middleware::MotorConfigService::Response &res){
     ROS_INFO("serving motor config service");
     control_Parameters_t params;
+    uint i = 0;
     for(auto motor:req.config.motors){
         params.control_mode = req.config.control_mode[motor];
         params.outputPosMax = req.config.outputPosMax[motor];
@@ -228,7 +229,8 @@ bool MyoSlave::MotorConfigService(roboy_communication_middleware::MotorConfigSer
         params.deadBand = req.config.deadBand[motor];
         params.IntegralPosMax = req.config.IntegralPosMax[motor];
         params.IntegralNegMax = req.config.IntegralNegMax[motor];
-        changeControl(motor, params);
+        changeControl(motor, params, req.setPoints[i]);
+        i++;
     }
 }
 
@@ -948,7 +950,7 @@ int MyoSlave::getOptions(int argc_p, char* const argv_p[], tOptions* pOpts_p){
     return 0;
 }
 
-void MyoSlave::changeControl(int motor, control_Parameters_t &params){
+void MyoSlave::changeControl(int motor, control_Parameters_t &params, int32_t setPoint){
     control_params[motor][params.control_mode] = params;
     int motorOffset = motor>=MOTORS_PER_MYOCONTROL?MOTORS_PER_MYOCONTROL:0;
 	MYO_WRITE_control(myo_base[motor/MOTORS_PER_MYOCONTROL], motor-motorOffset, params.control_mode);
@@ -962,6 +964,7 @@ void MyoSlave::changeControl(int motor, control_Parameters_t &params){
 	MYO_WRITE_IntegralNegMax(myo_base[motor/MOTORS_PER_MYOCONTROL], motor-motorOffset, params.IntegralNegMax);
 	MYO_WRITE_outputPosMax(myo_base[motor/MOTORS_PER_MYOCONTROL], motor-motorOffset, params.outputPosMax);
 	MYO_WRITE_outputNegMax(myo_base[motor/MOTORS_PER_MYOCONTROL], motor-motorOffset, params.outputNegMax);
+    MYO_WRITE_sp(myo_base[motor/MOTORS_PER_MYOCONTROL], motor-motorOffset, setPoint);
 }
 
 void MyoSlave::changeControl(int motor, int mode){
