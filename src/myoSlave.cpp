@@ -202,18 +202,18 @@ void MyoSlave::MotorConfig(const roboy_communication_middleware::MotorConfig::Co
     control_Parameters_t params;
     uint i = 0;
     for(auto motor:msg->motors){
-        params.control_mode = msg->control_mode[motor];
-        params.outputPosMax = msg->outputPosMax[motor];
-        params.outputNegMax = msg->outputNegMax[motor];
-        params.spPosMax = msg->spPosMax[motor];
-        params.spNegMax = msg->spNegMax[motor];
-        params.Kp = msg->Kp[motor];
-        params.Ki = msg->Ki[motor];
-        params.Kd = msg->Kd[motor];
-        params.forwardGain = msg->forwardGain[motor];
-        params.deadBand = msg->deadBand[motor];
-        params.IntegralPosMax = msg->IntegralPosMax[motor];
-        params.IntegralNegMax = msg->IntegralNegMax[motor];
+        params.control_mode = msg->control_mode[i];
+        params.outputPosMax = msg->outputPosMax[i];
+        params.outputNegMax = msg->outputNegMax[i];
+        params.spPosMax = msg->spPosMax[i];
+        params.spNegMax = msg->spNegMax[i];
+        params.Kp = msg->Kp[i];
+        params.Ki = msg->Ki[i];
+        params.Kd = msg->Kd[i];
+        params.forwardGain = msg->forwardGain[i];
+        params.deadBand = msg->deadBand[i];
+        params.IntegralPosMax = msg->IntegralPosMax[i];
+        params.IntegralNegMax = msg->IntegralNegMax[i];
         changeControl(motor, params);
         i++;
     }
@@ -221,25 +221,37 @@ void MyoSlave::MotorConfig(const roboy_communication_middleware::MotorConfig::Co
 
 bool MyoSlave::MotorConfigService(roboy_communication_middleware::MotorConfigService::Request  &req,
                                   roboy_communication_middleware::MotorConfigService::Response &res){
+    if(req.setPoints.size()!=req.config.motors.size()){
+        ROS_ERROR("the number of setpoints do not match the number of motor configs");
+        return false;
+    }
+
     ROS_INFO("serving motor config service");
     control_Parameters_t params;
     uint i = 0;
     for(auto motor:req.config.motors){
-        params.control_mode = req.config.control_mode[motor];
-        params.outputPosMax = req.config.outputPosMax[motor];
-        params.outputNegMax = req.config.outputNegMax[motor];
-        params.spPosMax = req.config.spPosMax[motor];
-        params.spNegMax = req.config.spNegMax[motor];
-        params.Kp = req.config.Kp[motor];
-        params.Ki = req.config.Ki[motor];
-        params.Kd = req.config.Kd[motor];
-        params.forwardGain = req.config.forwardGain[motor];
-        params.deadBand = req.config.deadBand[motor];
-        params.IntegralPosMax = req.config.IntegralPosMax[motor];
-        params.IntegralNegMax = req.config.IntegralNegMax[motor];
+        if(req.config.control_mode[i]<POSITION || req.config.control_mode[i]>DISPLACEMENT){
+            ROS_ERROR("trying to set an invalid control mode %d, available control modes: "
+                              "[0]Position [1]Velocity [2]Displacement", req.config.control_mode[i]);
+            continue;
+        }
+        params.control_mode = req.config.control_mode[i];
+        params.outputPosMax = req.config.outputPosMax[i];
+        params.outputNegMax = req.config.outputNegMax[i];
+        params.spPosMax = req.config.spPosMax[i];
+        params.spNegMax = req.config.spNegMax[i];
+        params.Kp = req.config.Kp[i];
+        params.Ki = req.config.Ki[i];
+        params.Kd = req.config.Kd[i];
+        params.forwardGain = req.config.forwardGain[i];
+        params.deadBand = req.config.deadBand[i];
+        params.IntegralPosMax = req.config.IntegralPosMax[i];
+        params.IntegralNegMax = req.config.IntegralNegMax[i];
         changeControl(motor, params, req.setPoints[i]);
+        ROS_INFO("setting motor %d to control mode %d with setpoint %d", motor, params.control_mode, req.setPoints[i]);
         i++;
     }
+    return true;
 }
 
 void MyoSlave::recordMotors(const roboy_communication_middleware::MotorRecordConfig::ConstPtr &msg){
@@ -807,8 +819,13 @@ tOplkError MyoSlave::processStateChangeEvent(tOplkApiEventType EventType_p,
         case kNmtCsStopped:                 // different
         case kNmtCsPreOperational2:         // states here
         case kNmtCsReadyToOperate:
-        case kNmtCsOperational:
-            changeControl(DISPLACEMENT);
+        case kNmtCsOperational: {
+            control_Parameters_t params;
+            getDefaultControlParams(&params, DISPLACEMENT);
+            for (uint motor = 0; motor < numberOfMotors; motor++) {
+                control_params[motor][DISPLACEMENT] = params;
+                changeControl(motor, params, 0);
+            }
             reset();
             console_printlog("myoFPGA operational StateChangeEvent(0x%X) originating event = 0x%X (%s)\n",
                              pNmtStateChange->newNmtState,
@@ -816,6 +833,7 @@ tOplkError MyoSlave::processStateChangeEvent(tOplkApiEventType EventType_p,
                              debugstr_getNmtEventStr(pNmtStateChange->nmtEvent));
             toggleSPI(true);
             break;
+        }
         case kNmtCsBasicEthernet:           // no break;
 
         default:
