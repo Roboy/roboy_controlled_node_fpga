@@ -64,7 +64,8 @@ if(NOT EXISTS "ENV{SOCEDS_DEST_ROOT}")
             $ENV{SOCEDS_DEST_ROOT}/ip/altera/hps/altera_hps/hwlib/${ALT_DEVICE_FAMILY}
             $ENV{SOCEDS_DEST_ROOT}/ip/altera/hps/altera_hps/hwlib/include
             $ENV{SOCEDS_DEST_ROOT}/ip/altera/hps/altera_hps/hwlib/include/${ALT_DEVICE_FAMILY}
-            ${CMAKE_CURRENT_SOURCE_DIR}/../roboy_powerlink/powerlink/output
+#            ${CMAKE_CURRENT_SOURCE_DIR}/../roboy_powerlink/powerlink/output
+            /home/roboy/workspace/myoFPGA/myoFPGA/src/roboy_powerlink/Demo_3CN/output
             ${CMAKE_CURRENT_SOURCE_DIR}/../roboy_managing_node/include
             ${OPLK_BASE_DIR}/stack/proj/linux/liboplkmndrv-pcap
     )

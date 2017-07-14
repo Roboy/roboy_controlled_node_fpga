@@ -702,12 +702,18 @@ tOplkError MyoSlave::processSync(){
         jointStatus.publish(msg);
     }
 
+    uint active_sensors = 0;
     roboy_communication_middleware::DarkRoom msg;
     for(uint i=0;i<NUM_SENSORS;i++){
-        msg.sensor_value.push_back(IORD(darkroom_base,i));
+        int32_t val = IORD(darkroom_base,i);
+        msg.sensor_value.push_back(val);
+        if((val >> 29)&0x1)//valid
+            active_sensors ++;
     }
     darkroom.publish(msg);
-//
+
+    ROS_INFO_THROTTLE(1,"lighthouse sensors active %d/%d", active_sensors, NUM_SENSORS);
+
     roboy_communication_middleware::MotorStatus msg2;
     for (uint motor = 0; motor < 14; motor++) {
         msg2.pwmRef.push_back(getPWM(motor));
